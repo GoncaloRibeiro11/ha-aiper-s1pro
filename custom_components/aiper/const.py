@@ -13,6 +13,7 @@ CONF_MQTT_DEBUG = "mqtt_debug"
 CONF_METADATA_REFRESH_HOURS = "metadata_refresh_hours"
 
 DEFAULT_METADATA_REFRESH_HOURS = 24
+DEFAULT_LIVE_REFRESH_SECONDS = 60
 
 
 class ApiEndpoint(StrEnum):

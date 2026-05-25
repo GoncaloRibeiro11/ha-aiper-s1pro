@@ -634,7 +634,7 @@ class AiperApi:
         """Get online status for a device without blocking the event loop."""
         try:
             payload = await self._call_encrypted("POST", "/equipment/checkEquipmentOnlineStatus", {"sn": sn})
-            _LOGGER.info("Device status for %s: %s", sn, payload)
+            _LOGGER.debug("Device status for %s: %s", sn, payload)
 
             if self._is_success(payload):
                 return payload.get("data")

@@ -15,6 +15,7 @@ from homeassistant.util import dt as dt_util
 from .api import AiperApi
 from .const import (
     CLEAN_PATH_LABEL_TO_VALUE,
+    DEFAULT_LIVE_REFRESH_SECONDS,
     DEFAULT_METADATA_REFRESH_HOURS,
     DOMAIN,
     status_running,
@@ -265,7 +266,7 @@ class AiperDataUpdateCoordinator(DataUpdateCoordinator[DevicesState]):
             _LOGGER,
             config_entry=config_entry,
             name=DOMAIN,
-            update_interval=self._metadata_refresh,
+            update_interval=timedelta(seconds=DEFAULT_LIVE_REFRESH_SECONDS),
         )
         self.api = api
         self._devices: dict[str, RawDeviceData] = {}
@@ -367,6 +368,28 @@ class AiperDataUpdateCoordinator(DataUpdateCoordinator[DevicesState]):
                     self._devices[sn]["link"] = 0
                     self._devices[sn]["wifiName"] = None
                     self._devices[sn]["wifiRssi"] = None
+
+                try:
+                    status_payload = await self.api.get_device_status(sn)
+                except Exception as err:
+                    _LOGGER.debug("Live status refresh failed for %s: %s", sn, err)
+                else:
+                    online = _coerce_bool(status_payload)
+                    if online is None and isinstance(status_payload, dict):
+                        status_data = status_payload.get("data", status_payload)
+                        if isinstance(status_data, dict):
+                            online = _coerce_bool(status_data.get("online"))
+                            if online is None:
+                                online = _coerce_bool(status_data.get("isOnline"))
+                        else:
+                            online = _coerce_bool(status_data)
+                    if online is not None:
+                        self._devices[sn]["online"] = online
+                        self._last_online[sn] = online
+
+                if self.api.is_mqtt_connected():
+                    with suppress(Exception):
+                        await self.api.request_shadow(sn)
 
                 if metadata_due:
                     info = None
