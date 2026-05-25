@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+from json import JSONDecodeError
 from typing import Any
 
 import aiohttp
@@ -178,12 +179,14 @@ class AiperApiClient:
         params: dict | None = None,
     ) -> dict[str, Any]:
         url = f"{API_BASE}{endpoint}"
+        _LOGGER.debug("Aiper API GET %s", endpoint)
         try:
             async with self._session.get(
                 url, params=params, headers=self._headers()
             ) as resp:
-                return await self._handle_response(resp)
+                return await self._handle_response(resp, endpoint)
         except aiohttp.ClientError as exc:
+            _LOGGER.debug("Aiper API GET %s failed: %s", endpoint, exc)
             raise AiperConnectionError(f"GET {endpoint} failed: {exc}") from exc
 
     async def _post(
@@ -193,24 +196,40 @@ class AiperApiClient:
         auth: bool = True,
     ) -> dict[str, Any]:
         url = f"{API_BASE}{endpoint}"
+        _LOGGER.debug("Aiper API POST %s", endpoint)
         try:
             async with self._session.post(
                 url, json=payload, headers=self._headers(auth=auth)
             ) as resp:
-                return await self._handle_response(resp)
+                return await self._handle_response(resp, endpoint)
         except aiohttp.ClientError as exc:
+            _LOGGER.debug("Aiper API POST %s failed: %s", endpoint, exc)
             raise AiperConnectionError(f"POST {endpoint} failed: {exc}") from exc
 
     @staticmethod
-    async def _handle_response(resp: aiohttp.ClientResponse) -> dict[str, Any]:
+    async def _handle_response(
+        resp: aiohttp.ClientResponse,
+        endpoint: str,
+    ) -> dict[str, Any]:
+        text = await resp.text()
+        _LOGGER.debug(
+            "Aiper API %s returned HTTP %s: %s",
+            endpoint,
+            resp.status,
+            text[:500],
+        )
         if resp.status == 401:
             raise AiperAuthError("Token expired or invalid")
         if resp.status != 200:
-            text = await resp.text()
             raise AiperConnectionError(
                 f"HTTP {resp.status}: {text[:200]}"
             )
-        body: dict = await resp.json()
+        try:
+            body: dict = await resp.json()
+        except (aiohttp.ContentTypeError, JSONDecodeError) as exc:
+            raise AiperConnectionError(
+                f"Invalid JSON response from {endpoint}: {text[:200]}"
+            ) from exc
         # Aiper API wraps responses: {"code": 0, "msg": "ok", "data": {...}}
         if body.get("code", 0) != 0:
             raise AiperCommandError(

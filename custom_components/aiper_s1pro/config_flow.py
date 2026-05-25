@@ -50,9 +50,11 @@ class AiperConfigFlow(ConfigFlow, domain=DOMAIN):
             try:
                 await client.async_login()
                 self._devices = await client.async_get_devices()
-            except AiperAuthError:
+            except AiperAuthError as exc:
+                _LOGGER.warning("Aiper authentication failed: %s", exc)
                 errors["base"] = "invalid_auth"
-            except AiperConnectionError:
+            except AiperConnectionError as exc:
+                _LOGGER.warning("Aiper cloud connection failed: %s", exc)
                 errors["base"] = "cannot_connect"
             except Exception:
                 _LOGGER.exception("Unexpected error during login")
