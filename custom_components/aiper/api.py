@@ -1263,7 +1263,22 @@ class AiperApi:
         """Set a selectable cleaning mode."""
         _LOGGER.info("Setting cleaning mode for %s: %s", sn, mode)
 
-        cmd_result = await self.send_machine_at(sn, f"AT+PLAN={int(mode)}")
+        mode_value = int(mode)
+        cmd_result: bool | None = None
+        for at_cmd in (
+            f"AT+PLAN={mode_value}",
+            f"AT+MODE={mode_value}",
+            f"AT+CLEANMODE={mode_value}",
+            f"AT+SETMODE={mode_value}",
+        ):
+            cmd_result = await self.send_machine_at(sn, at_cmd)
+            if cmd_result is True:
+                _LOGGER.debug("Cleaning mode AT confirmed: %s", at_cmd)
+                break
+            if cmd_result is False:
+                _LOGGER.debug("Cleaning mode AT rejected: %s", at_cmd)
+                continue
+            _LOGGER.debug("Cleaning mode AT sent without ack: %s", at_cmd)
 
         with suppress(Exception):
             await self.request_shadow(sn)
