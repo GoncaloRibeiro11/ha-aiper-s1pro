@@ -38,7 +38,7 @@ class AiperDataCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             return await self.client.async_get_device_status(self.device_id)
         except AiperAuthError as exc:
             # Try to re-authenticate once
-            _LOGGER.warning("Token expired, re-authenticating…")
+            _LOGGER.warning("Token expired, re-authenticating")
             try:
                 await self.client.async_login()
                 return await self.client.async_get_device_status(self.device_id)

@@ -1,0 +1,14 @@
+[project]
+name = "ha-aiper-s1pro"
+version = "0.1.0"
+description = "Custom Home Assistant integration for the Aiper Scuba S1 Pro pool cleaner"
+readme = "README.md"
+requires-python = ">=3.13"
+license = { text = "MIT" }
+
+[tool.ruff]
+target-version = "py313"
+line-length = 88
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]

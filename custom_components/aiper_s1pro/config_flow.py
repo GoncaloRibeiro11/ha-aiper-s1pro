@@ -4,7 +4,6 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-import aiohttp
 import voluptuous as vol
 
 from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
@@ -62,7 +61,7 @@ class AiperConfigFlow(ConfigFlow, domain=DOMAIN):
                 if not self._devices:
                     errors["base"] = "no_devices"
                 elif len(self._devices) == 1:
-                    # Only one device → skip device selection
+                    # Only one device, so skip device selection.
                     device = self._devices[0]
                     return self._create_entry(device)
                 else:
