@@ -1,0 +1,18 @@
+{
+  "domain": "aiper",
+  "name": "Aiper Pool Cleaner",
+  "codeowners": [
+    "@kmich",
+    "@GoncaloRibeiro11"
+  ],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://github.com/GoncaloRibeiro11/ha-aiper-s1pro",
+  "integration_type": "hub",
+  "iot_class": "cloud_push",
+  "issue_tracker": "https://github.com/GoncaloRibeiro11/ha-aiper-s1pro/issues",
+  "requirements": [
+    "awsiotsdk>=1.29.0"
+  ],
+  "version": "0.9.5"
+}

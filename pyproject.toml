@@ -1,14 +1,52 @@
 [project]
-name = "ha-aiper-s1pro"
-version = "0.1.0"
-description = "Custom Home Assistant integration for the Aiper Scuba S1 Pro pool cleaner"
+name = "ha-aiper"
+version = "0.9.5"
+description = "Development tooling for the Aiper Home Assistant custom integration."
 readme = "README.md"
-requires-python = ">=3.13"
-license = { text = "MIT" }
+requires-python = ">=3.12,<3.15"
+dependencies = [
+    "awsiotsdk>=1.29.0",
+]
+
+[dependency-groups]
+dev = [
+    "homeassistant",
+    "mypy",
+    "pyright>=1.1.409",
+    "pytest",
+    "pytest-homeassistant-custom-component",
+    "pyyaml",
+    "ruff",
+    "types-PyYAML",
+]
+
+[tool.setuptools]
+packages = []
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-ra"
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
 
 [tool.ruff]
-target-version = "py313"
-line-length = 88
+line-length = 120
+target-version = "py312"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B", "SIM"]
+select = ["E", "F", "W", "I", "UP", "B", "SIM"]
+ignore = ["E501", "E701", "SIM117"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["custom_components.aiper"]
+known-third-party = ["aiohttp", "awsiot", "homeassistant"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = false
+ignore_missing_imports = true
+explicit_package_bases = true
+
+[tool.pyright]
+reportIncompatibleVariableOverride = "none"

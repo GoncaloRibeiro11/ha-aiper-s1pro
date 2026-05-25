@@ -1,91 +1,135 @@
-# ha-aiper-s1pro
+# Aiper Pool Cleaner
 
-Unofficial Home Assistant integration for the Aiper Scuba S1 Pro robotic pool
-cleaner.
+[![HACS][hacs-badge]][hacs-url]
+[![GitHub Release][release-badge]][release-url]
+[![License][license-badge]][license-url]
+[![Validate][validate-badge]][validate-url]
 
-Work in progress: the Aiper cloud API endpoints are reverse-engineered from app
-traffic. If something does not work, please open an issue with your logs.
+![Aiper Pool Cleaner icon](custom_components/aiper/brand/icon.png)
+
+Home Assistant custom integration for Aiper pool cleaners. This variant is
+based on the community `kmich/ha-aiper` integration and includes an experimental
+device-family detection tweak for Aiper Scuba S1 Pro devices.
+
+It connects to
+Aiper's cloud REST API and AWS IoT MQTT control plane to expose live pool
+cleaner state and supported controls in Home Assistant.
 
 ## Features
 
-| Entity | Type | Description |
-|---|---|---|
-| `vacuum.aiper_scuba_s1_pro` | Vacuum | Start, stop, pause, return to dock, locate, cleaning mode |
-| `sensor.battery` | Sensor | Battery level (%) |
-| `sensor.last_clean_area` | Sensor | Area cleaned in last session |
-| `sensor.last_clean_duration` | Sensor | Duration of last session (min) |
-| `sensor.error_code` | Sensor | Current error code, if any |
-
-## Cleaning Modes
-
-Cleaning modes are exposed through the Home Assistant vacuum fan speed feature.
-
-| Mode | Description |
-|---|---|
-| `auto` | Full clean: floor, walls, and waterline |
-| `floor` | Floor only |
-| `wall` | Walls only |
-| `waterline` | Waterline only |
-| `floor_wall` | Floor and walls |
+- Config flow setup from the Home Assistant UI.
+- Live MQTT-backed device state for supported cleaners.
+- Device sensors, binary sensors, switches, selects, and diagnostics based on
+  model capabilities.
+- HACS release ZIPs for normal installs and upgrades.
 
 ## Installation
 
-### HACS
+### HACS (recommended)
 
-1. In HACS, open custom repositories.
-2. Add `https://github.com/GoncaloRibeiro11/ha-aiper-s1pro` as an integration.
-3. Search for "Aiper S1 Pro" and install it.
-4. Restart Home Assistant.
+1. In HACS, open **Integrations**.
+2. Open the three-dot menu and choose **Custom repositories**.
+3. Add `https://github.com/GoncaloRibeiro11/ha-aiper-s1pro` as an
+   **Integration** repository.
+4. Install **Aiper Pool Cleaner** and restart Home Assistant.
 
 ### Manual
 
-Copy the integration folder into your Home Assistant config directory:
+1. Copy `custom_components/aiper` from this repository into
+   `config/custom_components/aiper` in Home Assistant.
+2. Restart Home Assistant.
 
-```bash
-cp -r custom_components/aiper_s1pro /config/custom_components/aiper_s1pro
-```
-
-Restart Home Assistant.
+For upgrades, replace the whole `config/custom_components/aiper` directory.
+Do not merge files into an older copy because releases may remove Python
+modules.
 
 ## Configuration
 
-1. Go to Settings > Devices & services > Add integration.
-2. Search for "Aiper Scuba S1 Pro".
-3. Enter your Aiper app email and password.
-4. Select your device if the account has more than one.
+1. Open **Settings -> Devices & Services**.
+2. Select **Add Integration**.
+3. Search for **Aiper Pool Cleaner**.
+4. Sign in with the Aiper account used by the mobile app.
 
-## API Discovery
+The integration uses Aiper's cloud services. Credentials, tokens, serial
+numbers, and MQTT payloads should be treated as sensitive when sharing logs or
+diagnostics.
 
-The API endpoints in `api.py` are based on traffic captured from the Aiper
-Android app. If commands do not work on your device, capturing your own app
-traffic can help improve the integration.
+## Scuba S1 Pro Status
 
-### Capture Aiper App Traffic With mitmproxy
+Scuba S1 Pro support is experimental. Some Aiper cloud payloads identify the
+robot as `S1 Pro` instead of using a full `Scuba` model name, so this fork
+checks several identity fields before falling back to an unknown model profile.
+If the device still appears without cleaning-mode or clean-path controls, open
+an issue with redacted diagnostics from Home Assistant.
+
+## Entities
+
+The available entities depend on the cleaner model and the capabilities Aiper
+reports for it. Supported surfaces can include:
+
+- Cleaner state, battery, charging, error, warning, and consumable sensors.
+- Online and runtime binary sensors.
+- Switch controls such as supported cleaner start/stop paths.
+- Select controls for supported cleaning mode and clean-path choices.
+
+## Development
+
+Run a local Home Assistant container with the integration bind-mounted:
 
 ```bash
-pip install mitmproxy
-mitmproxy --listen-port 8080
+docker compose up
 ```
 
-On your Android phone:
+Then open Home Assistant at <http://localhost:8123>.
 
-1. Open Wi-Fi settings for your network.
-2. Set the proxy to manual.
-3. Use your computer IP as the host and `8080` as the port.
-4. Install the mitmproxy CA certificate from `mitm.it`.
-5. Open the Aiper app and start or stop a cleaning cycle.
+The container uses `ha-config/` as its Home Assistant config directory and
+mounts this repository's `custom_components/` directory into it.
 
-Copy relevant captured requests into a GitHub issue. Remove passwords, tokens,
-email addresses, and any other private data before sharing logs.
+For local Python checks, install the development environment and run the focused
+test suite:
 
-## Known Limitations
+```bash
+uv sync --group dev
+uv run pytest
+```
 
-- The Hydrocomm buoy may be required for real-time status during cleaning.
-- Without real-time connectivity, status updates may only happen when the robot
-  surfaces.
-- Error code descriptions are not yet mapped to human-readable messages.
-- The Aiper cloud API is not officially documented and may change.
+## Troubleshooting
 
-## License
+- If an upgrade leaves import errors mentioning removed Aiper modules, delete
+  the existing `config/custom_components/aiper` directory and install the new
+  one again.
+- If live state or controls are unavailable, check that Home Assistant can
+  reach Aiper cloud services and that the cleaner is online in the Aiper app.
+- When reporting an issue, include Home Assistant logs and diagnostics after
+  removing any secrets or identifying device data.
 
-MIT. See [LICENSE](LICENSE).
+## Support
+
+Report bugs and request features in the GitHub issue tracker.
+
+## Lovelace examples
+
+This repository includes ready-to-copy dashboard snippets:
+
+- `lovelace/example-dashboard.yaml` (stock Lovelace)
+- `lovelace/mushroom-example.yaml` (Mushroom cards)
+
+### Optional device image (header)
+Place an image at:
+
+- `config/www/aiper/scuba_x1.png`
+
+Then reference it from Lovelace as:
+
+- `/local/aiper/scuba_x1.png`
+
+(Any image works - it is purely cosmetic.)
+
+[hacs-badge]: https://img.shields.io/badge/HACS-Custom-41BDF5.svg
+[hacs-url]: https://github.com/hacs/integration
+[release-badge]: https://img.shields.io/github/v/release/GoncaloRibeiro11/ha-aiper-s1pro
+[release-url]: https://github.com/GoncaloRibeiro11/ha-aiper-s1pro/releases
+[license-badge]: https://img.shields.io/github/license/GoncaloRibeiro11/ha-aiper-s1pro
+[license-url]: https://github.com/GoncaloRibeiro11/ha-aiper-s1pro/blob/main/LICENSE
+[validate-badge]: https://img.shields.io/github/actions/workflow/status/GoncaloRibeiro11/ha-aiper-s1pro/validate.yml?label=validate
+[validate-url]: https://github.com/GoncaloRibeiro11/ha-aiper-s1pro/actions/workflows/validate.yml
