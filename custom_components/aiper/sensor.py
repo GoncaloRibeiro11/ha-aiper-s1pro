@@ -166,6 +166,12 @@ SENSOR_DESCRIPTIONS: tuple[AiperSensorEntityDescription, ...] = (
         entity_category=EntityCategory.DIAGNOSTIC,
         state_class=SensorStateClass.MEASUREMENT,
     ),
+    AiperSensorEntityDescription(
+        key="consumables",
+        name="Consumables",
+        icon="mdi:tools",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
 )
 
 
@@ -177,7 +183,7 @@ async def async_setup_entry(
     """Set up Aiper sensors based on a config entry."""
     coordinator: AiperDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
 
-    entities: list[AiperSensor] = []
+    entities: list[SensorEntity] = []
 
     if coordinator.data:
         for sn, device_data in coordinator.data.items():
@@ -194,6 +200,11 @@ async def async_setup_entry(
                         device_data=device_data,
                     )
                 )
+            consumables = device_data.get("consumables")
+            if consumables is not None:
+                for item in consumables.attributes.get("items", []):
+                    if isinstance(item, dict) and item.get("key") and item.get("name"):
+                        entities.append(AiperConsumableSensor(coordinator, sn, device_data, item))
 
     async_add_entities(entities)
 
@@ -263,3 +274,74 @@ class AiperSensor(CoordinatorEntity[AiperDataUpdateCoordinator], SensorEntity):
             data = self.coordinator.data[self._sn]
             return data[self.entity_description.key].value is not None
         return False
+
+
+class AiperConsumableSensor(CoordinatorEntity[AiperDataUpdateCoordinator], SensorEntity):
+    """Representation of one Aiper consumable reported by the cloud."""
+
+    _attr_has_entity_name = True
+    _attr_icon = "mdi:tools"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(
+        self,
+        coordinator: AiperDataUpdateCoordinator,
+        sn: str,
+        device_data: DeviceState,
+        item: dict[str, Any],
+    ) -> None:
+        """Initialize the consumable sensor."""
+        super().__init__(coordinator)
+        self._sn = sn
+        self._consumable_key = str(item["key"])
+        self._attr_name = str(item["name"])
+        self._attr_unique_id = f"{sn}_consumable_{self._consumable_key}"
+
+        device_info = device_data["device_info"]
+        device_info_attrs = device_info.attributes
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, sn)},
+            name=str(device_info.value or f"Aiper {sn}"),
+            manufacturer="Aiper",
+            model=device_info_attrs.get("model"),
+            serial_number=sn,
+            sw_version=device_info_attrs.get("sw_version"),
+        )
+
+        if item.get("percent_left") is not None:
+            self._attr_native_unit_of_measurement = PERCENTAGE
+            self._attr_state_class = SensorStateClass.MEASUREMENT
+
+    def _item(self) -> dict[str, Any] | None:
+        if not self.coordinator.data or self._sn not in self.coordinator.data:
+            return None
+        consumables = self.coordinator.data[self._sn].get("consumables")
+        if consumables is None:
+            return None
+        for item in consumables.attributes.get("items", []):
+            if isinstance(item, dict) and str(item.get("key")) == self._consumable_key:
+                return item
+        return None
+
+    @property
+    def native_value(self) -> Any:
+        """Return the consumable state."""
+        item = self._item()
+        if not item:
+            return None
+        if item.get("percent_left") is not None:
+            return item.get("percent_left")
+        if item.get("status") is not None:
+            return item.get("status")
+        return item.get("remaining_hours")
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return consumable details."""
+        item = self._item()
+        return dict(item) if item else {}
+
+    @property
+    def available(self) -> bool:
+        """Return whether the consumable exists."""
+        return super().available and self._item() is not None

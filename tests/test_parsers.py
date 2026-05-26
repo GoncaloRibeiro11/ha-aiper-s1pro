@@ -131,6 +131,7 @@ def test_parse_consumables_handles_surfer_s2_direct_list_payload() -> None:
             "name": "Propeller",
             "remaining_hours": None,
             "percent_left": None,
+            "status": None,
             "last_replacement": consumables[0]["last_replacement"],
             "raw": {
                 "componentMaintainType": 1,
@@ -148,3 +149,24 @@ def test_parse_consumables_handles_surfer_s2_direct_list_payload() -> None:
         }
     ]
     assert consumables[0]["last_replacement"].tzinfo == UTC
+
+
+def test_parse_consumables_keeps_zero_values_and_status() -> None:
+    """Consumable maintenance values can be zero and still meaningful."""
+    consumables = _parse_consumables(
+        {
+            "data": [
+                {
+                    "consumableName": "Roller Brush",
+                    "remainPercent": 0,
+                    "remainingHours": "0",
+                    "maintainStatus": "Replace",
+                }
+            ]
+        }
+    )
+
+    assert consumables[0]["name"] == "Roller Brush"
+    assert consumables[0]["percent_left"] == 0
+    assert consumables[0]["remaining_hours"] == 0
+    assert consumables[0]["status"] == "Replace"

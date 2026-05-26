@@ -15,6 +15,7 @@ from homeassistant.util import dt as dt_util
 from .api import AiperApi
 from .const import (
     CLEAN_PATH_LABEL_TO_VALUE,
+    DEFAULT_CONSUMABLE_REFRESH_MINUTES,
     DEFAULT_LIVE_REFRESH_SECONDS,
     DEFAULT_METADATA_REFRESH_HOURS,
     DOMAIN,
@@ -203,6 +204,28 @@ def _parse_consumables(raw: Any) -> list[dict[str, Any]]:
     if not isinstance(data, list):
         return []
 
+    def _coerce_number(value: Any) -> int | float | None:
+        if value is None or isinstance(value, bool):
+            return None
+        if isinstance(value, (int, float)):
+            return value
+        if isinstance(value, str):
+            text = value.strip().replace("%", "")
+            if not text:
+                return None
+            try:
+                number = float(text)
+            except ValueError:
+                return None
+            return int(number) if number.is_integer() else number
+        return None
+
+    def _first_present(*values: Any) -> Any:
+        for value in values:
+            if value is not None:
+                return value
+        return None
+
     def _dynamic_value(item: dict[str, Any], *keys: str) -> Any:
         fields = item.get("dynamicsFields")
         wanted = {_norm_key(key) for key in keys}
@@ -230,6 +253,47 @@ def _parse_consumables(raw: Any) -> list[dict[str, Any]]:
 
         last_val = item.get("maintainLastChangeTime")
         last_rep = _parse_dt(last_val)
+        remaining_hours = _coerce_number(
+            _first_present(
+                item.get("remainingHours"),
+                item.get("remainHours"),
+                item.get("maintainRemainingHours"),
+                item.get("maintainRemainHours"),
+                _dynamic_value(
+                    item,
+                    "remaining_hours",
+                    "remain_hours",
+                    "maintain_remaining_hours",
+                    "maintain_remain_hours",
+                ),
+            )
+        )
+        percent_left = _coerce_number(
+            _first_present(
+                item.get("percentLeft"),
+                item.get("remainPercent"),
+                item.get("remainingPercent"),
+                item.get("lifePercent"),
+                item.get("maintainPercent"),
+                item.get("maintainRatio"),
+                _dynamic_value(
+                    item,
+                    "percent_left",
+                    "remain_percent",
+                    "remaining_percent",
+                    "life_percent",
+                    "maintain_percent",
+                    "maintain_ratio",
+                ),
+            )
+        )
+        status = _first_present(
+            item.get("status"),
+            item.get("state"),
+            item.get("maintainStatus"),
+            item.get("healthStatus"),
+            _dynamic_value(item, "status", "state", "maintain_status", "health_status"),
+        )
 
         cid = item.get("id")
         key = _slugify(f"{cid}_{name}" if cid else name)
@@ -238,8 +302,9 @@ def _parse_consumables(raw: Any) -> list[dict[str, Any]]:
             {
                 "key": key,
                 "name": name,
-                "remaining_hours": None,
-                "percent_left": None,
+                "remaining_hours": remaining_hours,
+                "percent_left": percent_left,
+                "status": str(status) if status is not None else None,
                 "last_replacement": last_rep,
                 "raw": item,
             }
@@ -271,6 +336,7 @@ class AiperDataUpdateCoordinator(DataUpdateCoordinator[DevicesState]):
         self.api = api
         self._devices: dict[str, RawDeviceData] = {}
         self._last_metadata_fetch: dict[str, datetime] = {}
+        self._last_consumables_fetch: dict[str, datetime] = {}
         self._consumables_cache: dict[str, list[dict[str, Any]]] = {}
         self._clean_path_cache: dict[str, int] = {}
 
@@ -391,6 +457,12 @@ class AiperDataUpdateCoordinator(DataUpdateCoordinator[DevicesState]):
                     with suppress(Exception):
                         await self.api.request_shadow(sn)
 
+                last_consumables = _ensure_utc_aware(self._last_consumables_fetch.get(sn))
+                consumables_due = (
+                    last_consumables is None
+                    or (now - last_consumables) >= timedelta(minutes=DEFAULT_CONSUMABLE_REFRESH_MINUTES)
+                )
+
                 if metadata_due:
                     info = None
                     try:
@@ -400,6 +472,9 @@ class AiperDataUpdateCoordinator(DataUpdateCoordinator[DevicesState]):
                     if isinstance(info, dict):
                         self._devices[sn]["info"] = info
 
+                    self._last_metadata_fetch[sn] = now
+
+                if metadata_due or consumables_due:
                     raw_cons = None
                     try:
                         raw_cons = await self.api.get_consumables(sn)
@@ -410,7 +485,7 @@ class AiperDataUpdateCoordinator(DataUpdateCoordinator[DevicesState]):
                     # to avoid requiring an integration reload to observe new values.
                     if raw_cons is not None:
                         self._consumables_cache[sn] = cons_list
-                    self._last_metadata_fetch[sn] = now
+                        self._last_consumables_fetch[sn] = now
 
                 # Derive supported modes only from observed info metadata.
                 # Family profiles provide typed defaults when the list is absent.

@@ -68,7 +68,14 @@ async def _setup_platform(platform_module, hass: HomeAssistant, entry: ConfigEnt
 
 
 def _keys(entities: list[Any]) -> set[str]:
-    return {entity.entity_description.key for entity in entities}
+    keys: set[str] = set()
+    for entity in entities:
+        description = getattr(entity, "entity_description", None)
+        if description is not None:
+            keys.add(description.key)
+        else:
+            keys.add(f"consumable:{entity._consumable_key}")
+    return keys
 
 
 def _select_keys(entities: list[Any]) -> set[str]:
@@ -80,7 +87,11 @@ def _unique_ids(entities: list[Any]) -> set[str]:
 
 
 def _entity_by_key(entities: list[Any], key: str) -> Any:
-    return next(entity for entity in entities if entity.entity_description.key == key)
+    return next(
+        entity
+        for entity in entities
+        if getattr(getattr(entity, "entity_description", None), "key", None) == key
+    )
 
 
 @pytest.mark.asyncio

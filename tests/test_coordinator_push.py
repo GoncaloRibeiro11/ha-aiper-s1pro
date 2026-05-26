@@ -71,23 +71,31 @@ def test_shadow_update_promotes_live_state() -> None:
 
 
 @pytest.mark.asyncio
-async def test_scheduled_refresh_skips_live_rest_polling(hass: HomeAssistant) -> None:
-    """Scheduled refreshes should not poll REST live device state."""
+async def test_scheduled_refresh_updates_live_status_without_metadata(hass: HomeAssistant) -> None:
+    """Scheduled refreshes poll live status without refreshing slow metadata."""
 
     class FakeApi:
-        def get_devices(self):
+        def __init__(self) -> None:
+            self.status_called = False
+
+        async def get_devices(self):
             raise AssertionError("live device list should not be polled")
 
-        def get_device_status(self, sn):
-            raise AssertionError("live status should not be polled")
+        async def get_device_status(self, sn):
+            self.status_called = True
+            return True
 
-        def get_device_info(self, sn):
+        async def get_device_info(self, sn):
             raise AssertionError("live info should not be polled")
 
+        def is_mqtt_connected(self):
+            return False
+
+    api = FakeApi()
     now = dt_util.utcnow()
     coordinator = AiperDataUpdateCoordinator.__new__(AiperDataUpdateCoordinator)
     coordinator.hass = hass
-    coordinator.api = cast(Any, FakeApi())
+    coordinator.api = cast(Any, api)
     coordinator._devices = {
         "SN123": {
             "sn": "SN123",
@@ -102,6 +110,7 @@ async def test_scheduled_refresh_skips_live_rest_polling(hass: HomeAssistant) ->
     coordinator.update_interval = timedelta(hours=1)
     coordinator._metadata_refresh = timedelta(hours=24)
     coordinator._last_metadata_fetch = {"SN123": now}
+    coordinator._last_consumables_fetch = {"SN123": now}
     coordinator._consumables_cache = {"SN123": []}
     coordinator._clean_path_cache = {}
     coordinator._command_state = {}
@@ -121,6 +130,7 @@ async def test_scheduled_refresh_skips_live_rest_polling(hass: HomeAssistant) ->
     assert data["SN123"]["online"].value is True
     assert data["SN123"]["battery"].value == 70
     assert coordinator._devices["SN123"]["clean_path"] is None
+    assert api.status_called is True
 
 
 def test_pending_running_intent_confirms_from_reported_status() -> None:

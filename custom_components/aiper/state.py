@@ -396,6 +396,8 @@ def _consumable_attrs(consumable: dict[str, Any] | None) -> dict[str, Any]:
         attrs["consumable_name"] = consumable.get("name")
     if consumable.get("remaining_hours") is not None:
         attrs["remaining_hours"] = consumable.get("remaining_hours")
+    if consumable.get("status") is not None:
+        attrs["status"] = consumable.get("status")
     if consumable.get("last_replacement") is not None:
         attrs["last_replacement"] = consumable.get("last_replacement")
     return attrs
@@ -406,6 +408,29 @@ def _normalize_consumable(states: DeviceState, device: RawDeviceData, key: str, 
     states[key] = EntityState(
         consumable.get("percent_left") if consumable else None,
         _consumable_attrs(consumable),
+    )
+
+
+def _normalize_consumables_summary(states: DeviceState, device: RawDeviceData) -> None:
+    items = device.get("consumables") or []
+    consumables: list[dict[str, Any]] = []
+    if isinstance(items, list):
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            consumables.append(
+                {
+                    "key": item.get("key"),
+                    "name": item.get("name"),
+                    "percent_left": item.get("percent_left"),
+                    "remaining_hours": item.get("remaining_hours"),
+                    "status": item.get("status"),
+                    "last_replacement": item.get("last_replacement"),
+                }
+            )
+    states["consumables"] = EntityState(
+        len(consumables) if consumables else None,
+        {"items": consumables},
     )
 
 
@@ -552,4 +577,5 @@ def normalize_device_state(raw: RawDeviceData) -> DeviceState:
     _normalize_consumable(state, raw, "micromesh_filter", "micromesh")
     _normalize_consumable(state, raw, "caterpillar_tread", "caterpillar")
     _normalize_consumable(state, raw, "propeller", "propeller")
+    _normalize_consumables_summary(state, raw)
     return state

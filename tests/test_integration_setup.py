@@ -43,8 +43,14 @@ class FakeApi:
     async def get_device_info(self, sn: str) -> dict[str, Any]:
         return {"mainFirmwareVersion": "1.0.0"}
 
+    async def get_device_status(self, sn: str) -> bool:
+        return True
+
     async def get_consumables(self, sn: str) -> dict[str, Any]:
         return {"data": []}
+
+    def is_mqtt_connected(self) -> bool:
+        return self.connect_called
 
     async def connect_mqtt(self) -> bool:
         self.connect_called = True
